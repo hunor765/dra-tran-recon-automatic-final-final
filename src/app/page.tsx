@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const API_URL = "/api";
+const API_URL = "/api.php";
 
 interface UploadResponse {
   success: boolean;
