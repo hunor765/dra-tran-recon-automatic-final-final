@@ -29,12 +29,21 @@ curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 120);
 
-// Forward headers
+// Check content type
+$contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+$isMultipart = strpos($contentType, 'multipart/form-data') !== false;
+
+// Forward headers (skip Content-Type for multipart - let cURL set it)
 $headers = [];
 foreach (getallheaders() as $name => $value) {
-    if (strtolower($name) !== 'host' && strtolower($name) !== 'connection') {
-        $headers[] = "$name: $value";
-    }
+    $lower = strtolower($name);
+    if ($lower === 'host' || $lower === 'connection')
+        continue;
+    if ($lower === 'content-type' && $isMultipart)
+        continue;
+    if ($lower === 'content-length' && $isMultipart)
+        continue;
+    $headers[] = "$name: $value";
 }
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 
@@ -42,11 +51,9 @@ curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 if ($method === 'POST') {
     curl_setopt($ch, CURLOPT_POST, true);
 
-    // Check if it's a file upload (multipart)
-    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
-
-    if (strpos($contentType, 'multipart/form-data') !== false) {
+    if ($isMultipart) {
         // File upload - rebuild the multipart data
+        // cURL will generate its own Content-Type with correct boundary
         $postData = [];
         foreach ($_FILES as $key => $file) {
             $postData[$key] = new CURLFile(
@@ -60,7 +67,7 @@ if ($method === 'POST') {
         }
         curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
     } else {
-        // JSON or other body
+        // JSON or other body - forward as-is
         $body = file_get_contents('php://input');
         curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     }
