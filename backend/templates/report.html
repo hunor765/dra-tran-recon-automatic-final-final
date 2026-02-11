@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            color: #121212;
+            line-height: 1.6;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #dd3333;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: #dd3333;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        
+        .logo-text h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .logo-text p {
+            font-size: 12px;
+            color: #737373;
+        }
+        
+        .date {
+            font-size: 12px;
+            color: #737373;
+        }
+        
+        h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: #121212;
+        }
+        
+        h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #121212;
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 8px;
+        }
+        
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        
+        .summary-card {
+            background: #f5f5f5;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .summary-card .label {
+            font-size: 11px;
+            color: #737373;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .summary-card .value {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .summary-card .value.red {
+            color: #dd3333;
+        }
+        
+        .summary-card .value.green {
+            color: #22c55e;
+        }
+        
+        .summary-card .value.yellow {
+            color: #eab308;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 32px;
+            font-size: 12px;
+        }
+        
+        th {
+            background: #f5f5f5;
+            text-align: left;
+            padding: 12px 8px;
+            font-weight: 600;
+            border-bottom: 2px solid #e5e5e5;
+        }
+        
+        td {
+            padding: 10px 8px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        
+        .text-right {
+            text-align: right;
+        }
+        
+        .rate-critical {
+            color: #dd3333;
+            font-weight: 600;
+        }
+        
+        .rate-warning {
+            color: #eab308;
+            font-weight: 600;
+        }
+        
+        .rate-good {
+            color: #22c55e;
+            font-weight: 600;
+        }
+        
+        .recommendation {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+        
+        .recommendation.critical {
+            border-left: 4px solid #dd3333;
+            background: rgba(221, 51, 51, 0.05);
+        }
+        
+        .recommendation.high {
+            border-left: 4px solid #eab308;
+            background: rgba(234, 179, 8, 0.05);
+        }
+        
+        .recommendation.medium {
+            border-left: 4px solid #3b82f6;
+            background: rgba(59, 130, 246, 0.05);
+        }
+        
+        .recommendation .priority {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        
+        .recommendation.critical .priority { color: #dd3333; }
+        .recommendation.high .priority { color: #eab308; }
+        .recommendation.medium .priority { color: #3b82f6; }
+        
+        .recommendation h4 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        
+        .recommendation p {
+            font-size: 12px;
+            color: #737373;
+        }
+        
+        .recommendation .impact {
+            font-size: 12px;
+            margin-top: 8px;
+        }
+        
+        .recommendation .impact strong {
+            color: #121212;
+        }
+        
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e5e5;
+            text-align: center;
+            font-size: 11px;
+            color: #737373;
+        }
+        
+        .section {
+            margin-bottom: 32px;
+        }
+        
+        @page {
+            size: A4;
+            margin: 20mm;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <div class="logo-icon">DRA</div>
+            <div class="logo-text">
+                <h1>Transaction Reconciliation Report</h1>
+                <p>by Data Revolt Agency</p>
+            </div>
+        </div>
+        <div class="date">
+            Generated: {{ date }}
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>Executive Summary</h2>
+        
+        <div class="summary-grid">
+            <div class="summary-card">
+                <div class="label">Match Rate</div>
+                <div class="value red">{{ summary.match_rate }}%</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Matched</div>
+                <div class="value">{{ "{:,}".format(summary.common) }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Missing from GA4</div>
+                <div class="value yellow">{{ "{:,}".format(summary.backend_only) }}</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">Value Accuracy</div>
+                <div class="value green">{{ value_comparison.exact_match_rate }}%</div>
+            </div>
+        </div>
+        
+        <table>
+            <tr>
+                <th>Metric</th>
+                <th class="text-right">Backend</th>
+                <th class="text-right">GA4</th>
+                <th class="text-right">Difference</th>
+            </tr>
+            <tr>
+                <td>Total Transactions</td>
+                <td class="text-right">{{ "{:,}".format(summary.backend_total) }}</td>
+                <td class="text-right">{{ "{:,}".format(summary.ga4_total) }}</td>
+                <td class="text-right">{{ "{:,}".format(summary.backend_total - summary.ga4_total) }}</td>
+            </tr>
+            <tr>
+                <td>Total Value</td>
+                <td class="text-right">{{ "{:,.2f}".format(summary.backend_total_value) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(summary.ga4_total_value) }}</td>
+                <td class="text-right">{{ "{:,.2f}".format(summary.backend_total_value - summary.ga4_total_value) }}</td>
+            </tr>
+        </table>
+    </div>
+    
+    {% if recommendations %}
+    <div class="section">
+        <h3>Recommendations</h3>
+        
+        {% for rec in recommendations %}
+        <div class="recommendation {{ rec.priority }}">
+            <div class="priority">{{ rec.priority }}</div>
+            <h4>{{ rec.title }}</h4>
+            <p>{{ rec.description }}</p>
+            <div class="impact">Impact: <strong>{{ "{:,.2f}".format(rec.impact) }}</strong></div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    {% if payment_analysis %}
+    <div class="section">
+        <h3>Payment Method Analysis</h3>
+        
+        <table>
+            <tr>
+                <th>Payment Method</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">In GA4</th>
+                <th class="text-right">Missing</th>
+                <th class="text-right">Rate</th>
+                <th class="text-right">Value Lost</th>
+            </tr>
+            {% for pm in payment_analysis %}
+            <tr>
+                <td>{{ pm.method }}</td>
+                <td class="text-right">{{ "{:,}".format(pm.total) }}</td>
+                <td class="text-right">{{ "{:,}".format(pm.in_ga4) }}</td>
+                <td class="text-right">{{ "{:,}".format(pm.missing) }}</td>
+                <td class="text-right {% if pm.rate < 50 %}rate-critical{% elif pm.rate < 80 %}rate-warning{% else %}rate-good{% endif %}">{{ pm.rate }}%</td>
+                <td class="text-right">{{ "{:,.2f}".format(pm.value_missing) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    {% if shipping_analysis %}
+    <div class="section">
+        <h3>Shipping Method Analysis</h3>
+        
+        <table>
+            <tr>
+                <th>Shipping Method</th>
+                <th class="text-right">Total</th>
+                <th class="text-right">In GA4</th>
+                <th class="text-right">Rate</th>
+            </tr>
+            {% for sm in shipping_analysis %}
+            <tr>
+                <td>{{ sm.method }}</td>
+                <td class="text-right">{{ "{:,}".format(sm.total) }}</td>
+                <td class="text-right">{{ "{:,}".format(sm.in_ga4) }}</td>
+                <td class="text-right {% if sm.rate < 50 %}rate-critical{% elif sm.rate < 80 %}rate-warning{% else %}rate-good{% endif %}">{{ sm.rate }}%</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    {% endif %}
+    
+    <div class="footer">
+        <p>© 2026 Data Revolt Agency. All rights reserved.</p>
+        <p>This report was generated automatically by DRA Transaction Reconciliation Tool.</p>
+    </div>
+</body>
+</html>

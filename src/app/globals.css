@@ -1,26 +1,141 @@
 @import "tailwindcss";
 
+/* DRA Brand Colors */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  /* Primary */
+  --revolt-red: #dd3333;
+  --revolt-red-hover: #c42d2d;
+  --revolt-black: #121212;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Light Mode */
+  --background: #ffffff;
+  --foreground: #121212;
+  --card: #ffffff;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --border: #e5e5e5;
+
+  /* Functional */
+  --success: #22c55e;
+  --warning: #eab308;
+  --destructive: #dd3333;
+  --info: #3b82f6;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
-    --foreground: #ededed;
+    --foreground: #fafafa;
+    --card: #141414;
+    --muted: #1a1a1a;
+    --muted-foreground: #a3a3a3;
+    --border: #262626;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-revolt-red: var(--revolt-red);
+  --color-revolt-red-hover: var(--revolt-red-hover);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-info: var(--info);
+  --font-sans: var(--font-montserrat);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-montserrat);
+}
+
+/* Button Styles */
+.btn-primary {
+  background: var(--revolt-red);
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  transition: all 200ms ease;
+}
+
+.btn-primary:hover {
+  background: var(--revolt-red-hover);
+  box-shadow: 0 0 20px rgba(221, 51, 51, 0.3);
+}
+
+.btn-secondary {
+  background: var(--muted);
+  color: var(--foreground);
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  transition: all 200ms ease;
+}
+
+.btn-secondary:hover {
+  background: var(--border);
+}
+
+/* Card Styles */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+}
+
+/* File Drop Zone */
+.drop-zone {
+  border: 2px dashed var(--border);
+  border-radius: 0.75rem;
+  padding: 3rem;
+  text-align: center;
+  transition: all 200ms ease;
+  cursor: pointer;
+}
+
+.drop-zone:hover,
+.drop-zone.active {
+  border-color: var(--revolt-red);
+  background: rgba(221, 51, 51, 0.05);
+}
+
+.drop-zone.active {
+  box-shadow: 0 0 20px rgba(221, 51, 51, 0.2);
+}
+
+/* Status Badges */
+.badge-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.badge-warning {
+  background: rgba(234, 179, 8, 0.15);
+  color: var(--warning);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.badge-error {
+  background: rgba(221, 51, 51, 0.15);
+  color: var(--destructive);
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
