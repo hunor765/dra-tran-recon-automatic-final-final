@@ -1,32 +1,13 @@
 <?php
 /**
  * PHP Proxy for FastAPI backend
- * Forwards /api.php/* requests to localhost:8000
- * Example: /api.php/upload/ga4 → http://127.0.0.1:8000/upload/ga4
+ * Forwards /api.php?route=/upload/ga4 → http://127.0.0.1:8000/upload/ga4
  */
 
-// Get the path after api.php using PATH_INFO or parse from REQUEST_URI
-$apiPath = $_SERVER['PATH_INFO'] ?? '';
-if (empty($apiPath)) {
-    // Fallback: parse from REQUEST_URI
-    $uri = $_SERVER['REQUEST_URI'];
-    $pos = strpos($uri, 'api.php');
-    if ($pos !== false) {
-        $apiPath = substr($uri, $pos + 7); // length of 'api.php' = 7
-    }
-}
-if (empty($apiPath))
-    $apiPath = '/';
-
-// Strip query string from path
-$queryString = '';
-if (strpos($apiPath, '?') !== false) {
-    list($apiPath, $queryString) = explode('?', $apiPath, 2);
-}
+// Get the route from query parameter
+$apiPath = $_GET['route'] ?? '/';
 
 $backendUrl = 'http://127.0.0.1:8000' . $apiPath;
-if ($queryString)
-    $backendUrl .= '?' . $queryString;
 
 // Get request method
 $method = $_SERVER['REQUEST_METHOD'];

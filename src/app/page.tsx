@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-const API_URL = "/api.php";
+const apiUrl = (path: string) => `/api.php?route=${encodeURIComponent(path)}`;
 
 interface UploadResponse {
   success: boolean;
@@ -110,7 +110,7 @@ export default function Home() {
   const uploadFile = async (file: File, endpoint: string): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await fetch(`${API_URL}${endpoint}`, {
+    const response = await fetch(apiUrl(endpoint), {
       method: "POST",
       body: formData,
     });
@@ -166,7 +166,7 @@ export default function Home() {
     setError(null);
 
     try {
-      const response = await fetch(`${API_URL}/analyze`, {
+      const response = await fetch(apiUrl("/analyze"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mapping),
@@ -983,7 +983,7 @@ export default function Home() {
                 onClick={async () => {
                   setLoading(true);
                   try {
-                    const response = await fetch(`${API_URL}/report/pdf`, {
+                    const response = await fetch(apiUrl("/report/pdf"), {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ ...mapping, specialist_notes: specialistNotes }),
