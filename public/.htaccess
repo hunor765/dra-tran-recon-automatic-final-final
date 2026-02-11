@@ -1,0 +1,15 @@
+RewriteEngine On
+
+# Route /api/* requests to the PHP proxy
+RewriteRule ^api/(.*)$ api/index.php [QSA,L]
+
+# If the requested file exists, serve it directly
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# If the requested directory exists, serve it
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# For SPA: serve index.html for all other routes
+RewriteRule ^ index.html [L]
