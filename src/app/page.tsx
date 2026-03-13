@@ -1,8 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { generatePdf } from "../lib/generatePdf";
 
-const apiUrl = (path: string) => `/api.php?route=${encodeURIComponent(path)}`;
+const isDev = process.env.NODE_ENV === "development";
+const apiUrl = (path: string) =>
+  isDev ? `http://localhost:8000${path}` : `/api.php?route=${encodeURIComponent(path)}`;
 
 interface UploadResponse {
   success: boolean;
@@ -10,6 +13,7 @@ interface UploadResponse {
   rows: number;
   columns: string[];
   sample: Record<string, unknown>[];
+  session_id: string;
 }
 
 interface AnalysisResult {
@@ -67,6 +71,13 @@ interface AnalysisResult {
     description: string;
     impact: number;
   }>;
+  source_medium_analysis: Array<{
+    source_medium: string;
+    total: number;
+    matched: number;
+    value_total: number;
+    value_matched: number;
+  }>;
 }
 
 type Step = "upload" | "mapping" | "results";
@@ -82,6 +93,7 @@ export default function Home() {
   const [results, setResults] = useState<AnalysisResult | null>(null);
   const [specialistNotes, setSpecialistNotes] = useState("");
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState("");
 
   // Column mapping state
   const [mapping, setMapping] = useState({
@@ -96,6 +108,10 @@ export default function Home() {
     backend_status: "",
     ga4_browser: "",
     ga4_device: "",
+    ga4_source_medium: "",
+    ga4_includes_vat: true,
+    backend_includes_vat: true,
+    vat_rate: 19,
   });
 
   const [dragActiveGa4, setDragActiveGa4] = useState(false);
@@ -110,13 +126,22 @@ export default function Home() {
   const uploadFile = async (file: File, endpoint: string): Promise<UploadResponse> => {
     const formData = new FormData();
     formData.append("file", file);
+    if (sessionId) {
+      formData.append("session_id", sessionId);
+    }
     const response = await fetch(apiUrl(endpoint), {
       method: "POST",
       body: formData,
     });
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Upload failed");
+      let message = "Upload failed";
+      try {
+        const error = await response.json();
+        message = error.detail || message;
+      } catch {
+        message = `Upload failed (HTTP ${response.status})`;
+      }
+      throw new Error(message);
     }
     return response.json();
   };
@@ -131,10 +156,14 @@ export default function Home() {
       type === "ga4" ? setGa4File(file) : setBackendFile(file);
 
       try {
+        setLoading(true);
         const result = await uploadFile(file, type === "ga4" ? "/upload/ga4" : "/upload/backend");
         type === "ga4" ? setGa4Columns(result.columns) : setBackendColumns(result.columns);
+        if (result.session_id) setSessionId(result.session_id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -148,6 +177,7 @@ export default function Home() {
         setLoading(true);
         const result = await uploadFile(file, type === "ga4" ? "/upload/ga4" : "/upload/backend");
         type === "ga4" ? setGa4Columns(result.columns) : setBackendColumns(result.columns);
+        if (result.session_id) setSessionId(result.session_id);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Upload failed");
       } finally {
@@ -169,12 +199,18 @@ export default function Home() {
       const response = await fetch(apiUrl("/analyze"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mapping),
+        body: JSON.stringify({ ...mapping, session_id: sessionId }),
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || "Analysis failed");
+        let message = "Analysis failed";
+        try {
+          const error = await response.json();
+          message = error.detail || message;
+        } catch {
+          message = `Analysis failed (HTTP ${response.status})`;
+        }
+        throw new Error(message);
       }
 
       const data = await response.json();
@@ -449,6 +485,20 @@ export default function Home() {
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-foreground mb-2">Session Source / Medium (Optional)</label>
+                    <select
+                      value={mapping.ga4_source_medium || ""}
+                      onChange={(e) => setMapping({ ...mapping, ga4_source_medium: e.target.value })}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground"
+                    >
+                      <option value="">Select column...</option>
+                      {ga4Columns.map((col) => (
+                        <option key={col} value={col}>{col}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -544,6 +594,51 @@ export default function Home() {
               </div>
             </div>
 
+            {/* VAT Settings */}
+            <div className="card mb-8">
+              <h3 className="font-semibold text-foreground mb-4">VAT Settings</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                If one export includes VAT and the other doesn&apos;t, values will be normalized before comparison.
+              </p>
+              <div className="grid md:grid-cols-3 gap-6">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mapping.ga4_includes_vat}
+                    onChange={(e) => setMapping({ ...mapping, ga4_includes_vat: e.target.checked })}
+                    className="w-4 h-4 accent-revolt-red"
+                  />
+                  <span className="text-sm text-foreground">GA4 values include VAT</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={mapping.backend_includes_vat}
+                    onChange={(e) => setMapping({ ...mapping, backend_includes_vat: e.target.checked })}
+                    className="w-4 h-4 accent-revolt-red"
+                  />
+                  <span className="text-sm text-foreground">Backend values include VAT</span>
+                </label>
+                <div>
+                  <label className="block text-sm text-foreground mb-1">VAT Rate (%)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    value={mapping.vat_rate}
+                    onChange={(e) => setMapping({ ...mapping, vat_rate: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground"
+                  />
+                </div>
+              </div>
+              {mapping.ga4_includes_vat !== mapping.backend_includes_vat && (
+                <div className="mt-4 px-3 py-2 bg-info/10 border border-info/20 rounded-md text-sm text-info">
+                  Values will be normalized to {!mapping.ga4_includes_vat && !mapping.backend_includes_vat ? "net" : "net"} (excl. VAT) using a {mapping.vat_rate}% rate before comparison.
+                </div>
+              )}
+            </div>
+
             <div className="flex justify-center gap-4">
               <button onClick={() => setStep("upload")} className="btn-secondary px-8 py-3">
                 Back
@@ -568,7 +663,7 @@ export default function Home() {
                 <div>
                   <h2 className="text-3xl font-bold mb-2">Analysis Complete</h2>
                   <p className="text-white/80">
-                    We found <span className="font-bold text-white">{formatCurrency(results.summary.backend_total_value - results.summary.ga4_total_value)}</span> in untracked revenue.
+                    We found <span className="font-bold text-white">{formatCurrency(Math.abs(results.summary.backend_total_value - results.summary.ga4_total_value))}</span> in {results.summary.backend_total_value >= results.summary.ga4_total_value ? "untracked" : "over-reported"} revenue.
                   </p>
                 </div>
                 <div className="flex gap-8">
@@ -598,9 +693,9 @@ export default function Home() {
               </div>
               <div className="card text-center">
                 <p className="text-sm text-muted-foreground mb-1">Value Discrepancy</p>
-                <p className="text-2xl font-bold text-destructive">-{formatCurrency(results.summary.backend_total_value - results.summary.ga4_total_value)}</p>
+                <p className="text-2xl font-bold text-destructive">{results.summary.backend_total_value >= results.summary.ga4_total_value ? "-" : "+"}{formatCurrency(Math.abs(results.summary.backend_total_value - results.summary.ga4_total_value))}</p>
               </div>
-              <div className="card text-center">
+              <div className="card text-center" title="Percentage of matched transactions where the GA4 value is within 1 of the backend value">
                 <p className="text-sm text-muted-foreground mb-1">Row Match Accuracy</p>
                 <p className="text-2xl font-bold text-success">{results.value_comparison.exact_match_rate}%</p>
               </div>
@@ -853,6 +948,47 @@ export default function Home() {
               </div>
             )}
 
+            {/* Shipping Analysis */}
+            {results.shipping_analysis && results.shipping_analysis.length > 0 && (
+              <div className="card mb-8">
+                <h3 className="font-semibold text-foreground mb-4">Tracking by Shipping Method</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-2 text-muted-foreground font-medium">Method</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">Total</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">In GA4</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.shipping_analysis.map((s, i) => (
+                        <tr key={i} className="border-b border-border">
+                          <td className="py-3 px-2 text-foreground">{s.method}</td>
+                          <td className="py-3 px-2 text-right text-foreground">{formatNumber(s.total)}</td>
+                          <td className="py-3 px-2 text-right text-foreground">{formatNumber(s.in_ga4)}</td>
+                          <td className="py-3 px-2 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <span className={s.rate < 50 ? "text-destructive font-medium" : s.rate < 80 ? "text-warning" : "text-success"}>
+                                {s.rate}%
+                              </span>
+                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${s.rate < 50 ? "bg-destructive" : s.rate < 80 ? "bg-warning" : "bg-success"}`}
+                                  style={{ width: `${s.rate}%` }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Tech Analysis Row */}
             <div className="grid md:grid-cols-2 gap-6 mb-8">
               {/* Payment Method Analysis */}
@@ -946,6 +1082,35 @@ export default function Home() {
               )}
             </div>
 
+            {/* Source/Medium Analysis */}
+            {results.source_medium_analysis && results.source_medium_analysis.length > 0 && (
+              <div className="card mb-8">
+                <h3 className="font-semibold text-foreground mb-4">Session Source / Medium (Matched Transactions)</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-2 text-muted-foreground font-medium">Source / Medium</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">Transactions</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">Matched</th>
+                        <th className="text-right py-3 px-2 text-muted-foreground font-medium">Value</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {results.source_medium_analysis.map((sm, i) => (
+                        <tr key={i} className="border-b border-border">
+                          <td className="py-3 px-2 text-foreground font-medium">{sm.source_medium}</td>
+                          <td className="py-3 px-2 text-right text-foreground">{formatNumber(sm.total)}</td>
+                          <td className="py-3 px-2 text-right text-foreground">{formatNumber(sm.matched)}</td>
+                          <td className="py-3 px-2 text-right text-foreground">{formatCurrency(sm.value_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Specialist Interpretation */}
             <div className="card mb-8">
               <h3 className="font-semibold text-foreground mb-2">Specialist Interpretation</h3>
@@ -976,6 +1141,24 @@ export default function Home() {
                 setGa4Columns([]);
                 setBackendColumns([]);
                 setSpecialistNotes("");
+                setSessionId("");
+                setMapping({
+                  ga4_transaction_id: "",
+                  ga4_value: "",
+                  ga4_date: "",
+                  backend_transaction_id: "",
+                  backend_value: "",
+                  backend_date: "",
+                  backend_payment_method: "",
+                  backend_shipping_method: "",
+                  backend_status: "",
+                  ga4_browser: "",
+                  ga4_device: "",
+                  ga4_source_medium: "",
+                  ga4_includes_vat: true,
+                  backend_includes_vat: true,
+                  vat_rate: 19,
+                });
               }} className="btn-secondary px-8 py-3">
                 Start New Analysis
               </button>
@@ -983,19 +1166,7 @@ export default function Home() {
                 onClick={async () => {
                   setLoading(true);
                   try {
-                    const response = await fetch(apiUrl("/report/pdf"), {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ ...mapping, specialist_notes: specialistNotes }),
-                    });
-                    if (!response.ok) throw new Error("Failed to generate PDF");
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement("a");
-                    a.href = url;
-                    a.download = "dra-transaction-reconciliation-report.pdf";
-                    a.click();
-                    window.URL.revokeObjectURL(url);
+                    await generatePdf(results!, specialistNotes);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "PDF generation failed");
                   } finally {

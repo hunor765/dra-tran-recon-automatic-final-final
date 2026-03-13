@@ -4,8 +4,26 @@
  * Forwards /api.php?route=/upload/ga4 → http://127.0.0.1:8000/upload/ga4
  */
 
-// Get the route from query parameter
+// Get the route from query parameter and validate it
 $apiPath = $_GET['route'] ?? '/';
+
+// Whitelist allowed route prefixes to prevent SSRF
+$allowedPrefixes = ['/upload/', '/analyze', '/report/', '/columns', '/health'];
+$isAllowed = false;
+foreach ($allowedPrefixes as $prefix) {
+    if ($apiPath === $prefix || strpos($apiPath, $prefix) === 0) {
+        $isAllowed = true;
+        break;
+    }
+}
+
+// Block requests with suspicious characters (SSRF vectors)
+if ((!$isAllowed && $apiPath !== '/') || preg_match('/[@#]|:\/\/|\\\\|%0[dDaA]/', $apiPath)) {
+    http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode(['error' => 'Forbidden: invalid route']);
+    exit;
+}
 
 $backendUrl = 'http://127.0.0.1:8000' . $apiPath;
 
@@ -26,22 +44,21 @@ $ch = curl_init();
 
 curl_setopt($ch, CURLOPT_URL, $backendUrl);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
 curl_setopt($ch, CURLOPT_TIMEOUT, 120);
 
 // Check content type
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 $isMultipart = strpos($contentType, 'multipart/form-data') !== false;
 
-// Forward headers (skip Content-Type for multipart - let cURL set it)
+// Forward only allowlisted headers
+$allowedHeaders = ['content-type', 'accept', 'authorization'];
 $headers = [];
 foreach (getallheaders() as $name => $value) {
     $lower = strtolower($name);
-    if ($lower === 'host' || $lower === 'connection')
+    if (!in_array($lower, $allowedHeaders))
         continue;
     if ($lower === 'content-type' && $isMultipart)
-        continue;
-    if ($lower === 'content-length' && $isMultipart)
         continue;
     $headers[] = "$name: $value";
 }
@@ -87,7 +104,7 @@ $responseContentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
 if (curl_errno($ch)) {
     http_response_code(502);
     header('Content-Type: application/json');
-    echo json_encode(['error' => 'Backend unavailable: ' . curl_error($ch)]);
+    echo json_encode(['error' => 'Backend unavailable']);
     curl_close($ch);
     exit;
 }
@@ -96,9 +113,19 @@ curl_close($ch);
 
 // Forward response
 http_response_code($httpCode);
+// Whitelist allowed response content types
+$allowedContentTypes = ['application/json', 'application/pdf', 'text/csv'];
 if ($responseContentType) {
-    header('Content-Type: ' . $responseContentType);
+    $typeAllowed = false;
+    foreach ($allowedContentTypes as $allowed) {
+        if (strpos($responseContentType, $allowed) !== false) {
+            $typeAllowed = true;
+            break;
+        }
+    }
+    header('Content-Type: ' . ($typeAllowed ? $responseContentType : 'application/octet-stream'));
 }
 header('Access-Control-Allow-Origin: *');
+header('X-Content-Type-Options: nosniff');
 
 echo $response;
