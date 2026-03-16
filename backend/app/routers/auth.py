@@ -17,7 +17,7 @@ from app.models.refresh_token import RefreshToken
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest, UserInfo
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
 
 
 def create_access_token(user_id: str, role: str, client_id: str | None) -> str:
