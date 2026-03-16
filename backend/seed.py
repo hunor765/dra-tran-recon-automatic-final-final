@@ -9,6 +9,7 @@ Run from inside the backend/ directory after `alembic upgrade head`.
 """
 import argparse
 import asyncio
+import hashlib
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -21,7 +22,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import AsyncSessionLocal, engine, Base
 from app.models.user import User
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def hash_password(password: str) -> str:
+    # Pre-hash with SHA-256 to avoid bcrypt's 72-byte limit
+    return pwd_context.hash(hashlib.sha256(password.encode()).hexdigest())
 
 
 async def seed(email: str, password: str, name: str) -> None:
@@ -36,7 +42,7 @@ async def seed(email: str, password: str, name: str) -> None:
         user = User(
             id=str(uuid.uuid4()),
             email=email,
-            password_hash=pwd_context.hash(password),
+            password_hash=hash_password(password),
             name=name,
             role="admin",
             is_active=True,

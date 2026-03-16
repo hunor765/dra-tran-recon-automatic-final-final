@@ -17,7 +17,12 @@ from app.models.refresh_token import RefreshToken
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest, UserInfo
 
 router = APIRouter()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__truncate_error=False)
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    # Pre-hash with SHA-256 to avoid bcrypt's 72-byte limit (matches seed.py)
+    return pwd_context.verify(hashlib.sha256(plain.encode()).hexdigest(), hashed)
 
 
 def create_access_token(user_id: str, role: str, client_id: str | None) -> str:
@@ -59,7 +64,7 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == data.email))
     user = result.scalar_one_or_none()
 
-    if not user or not pwd_context.verify(data.password, user.password_hash):
+    if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
