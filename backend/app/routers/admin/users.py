@@ -1,3 +1,5 @@
+import hashlib
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +28,7 @@ async def create_user(data: UserCreate, db: AsyncSession = Depends(get_db), _=De
 
     user = User(
         email=data.email,
-        password_hash=pwd_context.hash(data.password),
+        password_hash=pwd_context.hash(hashlib.sha256(data.password.encode()).hexdigest()),
         name=data.name,
         role=data.role,
     )
@@ -57,7 +59,7 @@ async def update_user(user_id: str, data: UserUpdate, db: AsyncSession = Depends
     if data.is_active is not None:
         user.is_active = data.is_active
     if data.password is not None:
-        user.password_hash = pwd_context.hash(data.password)
+        user.password_hash = pwd_context.hash(hashlib.sha256(data.password.encode()).hexdigest())
 
     await db.commit()
     await db.refresh(user)
