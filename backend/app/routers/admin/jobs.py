@@ -7,8 +7,9 @@ from datetime import date, timedelta
 from app.database import get_db
 from app.deps import require_admin
 from app.models.report_job import ReportJob
+from app.models.report_result import ReportResult
 from app.models.client import Client
-from app.schemas.report import ReportJobResponse, ReportGenerateRequest
+from app.schemas.report import ReportJobResponse, ReportResultResponse, ReportGenerateRequest, UpdateNotesRequest
 
 router = APIRouter(prefix="/jobs", tags=["Admin - Jobs"])
 
@@ -72,6 +73,41 @@ async def trigger_report(
     background_tasks.add_task(run_report_job, job.id)
 
     return {"job_id": job.id, "status": "pending"}
+
+
+@router.get("/{job_id}/result", response_model=ReportResultResponse)
+async def get_job_result(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    result = await db.execute(select(ReportResult).where(ReportResult.job_id == job_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report result not found")
+
+    job_result = await db.execute(select(ReportJob).where(ReportJob.id == report.job_id))
+    job = job_result.scalar_one_or_none()
+    resp = ReportResultResponse.model_validate(report)
+    if job:
+        resp.job = ReportJobResponse.model_validate(job)
+    return resp
+
+
+@router.put("/{job_id}/notes")
+async def update_job_notes(
+    job_id: str,
+    data: UpdateNotesRequest,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    result = await db.execute(select(ReportResult).where(ReportResult.job_id == job_id))
+    report = result.scalar_one_or_none()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report result not found")
+    report.specialist_notes = data.specialist_notes
+    await db.commit()
+    return {"detail": "Notes saved"}
 
 
 def _compute_date_range(data: ReportGenerateRequest) -> tuple[date, date]:

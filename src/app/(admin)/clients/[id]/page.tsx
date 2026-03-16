@@ -115,7 +115,7 @@ export default function ClientDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                {["Period", "Range", "Status", "Created"].map((h) => (
+                {["Period", "Range", "Status", "Created", ""].map((h) => (
                   <th key={h} className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>{h}</th>
                 ))}
               </tr>
@@ -133,8 +133,15 @@ export default function ClientDetailPage() {
                       {job.status}
                     </span>
                   </td>
-                  <td className="py-2" style={{ color: "var(--muted-foreground)" }}>
+                  <td className="py-2 pr-4" style={{ color: "var(--muted-foreground)" }}>
                     {new Date(job.created_at).toLocaleDateString()}
+                  </td>
+                  <td className="py-2">
+                    {job.status === "completed" && (
+                      <Link href={`/clients/${id}/reports/${job.id}`} className="text-sm" style={{ color: "var(--primary)" }}>
+                        View →
+                      </Link>
+                    )}
                   </td>
                 </tr>
               ))}
