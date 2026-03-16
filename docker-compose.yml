@@ -54,16 +54,9 @@ services:
       - api
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
-      - certbot_www:/var/www/certbot:ro
-      - certbot_conf:/etc/letsencrypt:ro
-    environment:
-      - DOMAIN=${DOMAIN}
 
 volumes:
   pgdata:
   uploads:
-  certbot_www:
-  certbot_conf:
