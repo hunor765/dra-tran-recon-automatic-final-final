@@ -30,11 +30,32 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — keep example template, ignore real secrets
+.env
+.env.local
+.env.*.local
+backend/.env
 
 # vercel
 .vercel
+
+# SSH keys and credentials
+dra-tran-recon-auto-ssh-key
+dra-tran-recon-auto-ssh-key.pub
+*_rsa
+*_ed25519
+*.key
+
+# PDF reports (generated artifacts)
+*.pdf
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/app/**/__pycache__/
+**/*.pyc
+**/*.pyo
+.pytest_cache/
 
 # typescript
 *.tsbuildinfo

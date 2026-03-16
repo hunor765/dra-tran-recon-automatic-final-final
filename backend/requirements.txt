@@ -4,4 +4,24 @@ pandas==2.2.3
 openpyxl==3.1.5
 python-multipart==0.0.9
 pydantic==2.9.2
+pydantic-settings==2.5.2
 reportlab==4.2.5
+
+# Auth & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+cryptography==42.0.8
+
+# Database
+sqlalchemy==2.0.36
+asyncpg==0.29.0
+alembic==1.13.3
+
+# Scheduling
+apscheduler==3.10.4
+
+# Platform Integrations
+woocommerce==3.0.0
+ShopifyAPI==12.6.0
+google-analytics-data==0.18.3
+google-auth==2.34.0
