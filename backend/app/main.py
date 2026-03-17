@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import auth
-from app.routers.admin import clients, users, credentials, jobs
+from app.routers.admin import clients, users, credentials, jobs, notifications, audit
 from app.routers.client import reports, upload, analyze
+from app.routers import shares
 from app.services.scheduler import start_scheduler
 
 
@@ -31,11 +32,16 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/admin")
     app.include_router(credentials.router, prefix="/admin")
     app.include_router(jobs.router, prefix="/admin")
+    app.include_router(notifications.router, prefix="/admin")
+    app.include_router(audit.router, prefix="/admin")
 
     # Client routes
     app.include_router(reports.router)
     app.include_router(upload.router)
     app.include_router(analyze.router)
+
+    # Public share routes (no prefix — /share/{token} and /admin/jobs/{job_id}/share)
+    app.include_router(shares.router)
 
     @app.get("/")
     def root():

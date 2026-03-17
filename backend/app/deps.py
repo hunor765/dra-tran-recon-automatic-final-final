@@ -51,3 +51,25 @@ async def get_client_user(user: User = Depends(get_current_user)) -> User:
     if user.role not in ("admin", "client"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     return user
+
+
+async def get_client_id_for_user(user: User, db: AsyncSession) -> str | None:
+    """
+    C6: Returns the client_id for the current user.
+    Checks both the direct Client.user_id FK and the client_members junction table.
+    """
+    from app.models.client import Client
+    from app.models.client_member import ClientMember
+
+    # Primary: direct 1-to-1 link on clients table
+    result = await db.execute(select(Client).where(Client.user_id == user.id))
+    client = result.scalar_one_or_none()
+    if client:
+        return client.id
+
+    # Secondary: multi-user membership
+    member_result = await db.execute(
+        select(ClientMember).where(ClientMember.user_id == user.id).limit(1)
+    )
+    member = member_result.scalar_one_or_none()
+    return member.client_id if member else None

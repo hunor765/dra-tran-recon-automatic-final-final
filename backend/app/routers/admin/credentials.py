@@ -139,3 +139,49 @@ async def delete_credential(
     if cred:
         await db.delete(cred)
         await db.commit()
+
+
+@router.post("/{client_id}/credentials/{platform}/test")
+async def test_credential(
+    client_id: str, platform: str,
+    db: AsyncSession = Depends(get_db), _=Depends(require_admin)
+):
+    await _get_client_or_404(client_id, db)
+    result = await db.execute(
+        select(Credential).where(Credential.client_id == client_id, Credential.platform == platform)
+    )
+    cred = result.scalar_one_or_none()
+    if not cred:
+        raise HTTPException(status_code=404, detail=f"No {platform} credentials saved yet")
+
+    try:
+        if platform == "woocommerce":
+            from app.services.woocommerce import WooCommerceClient
+            client_obj = WooCommerceClient(
+                site_url=cred.wc_site_url,
+                consumer_key=decrypt(cred.wc_consumer_key_enc),
+                consumer_secret=decrypt(cred.wc_consumer_secret_enc),
+            )
+            ok = client_obj.test_connection()
+        elif platform == "shopify":
+            from app.services.shopify import ShopifyClient
+            client_obj = ShopifyClient(
+                store_domain=cred.shopify_store_domain,
+                access_token=decrypt(cred.shopify_access_token_enc),
+            )
+            ok = client_obj.test_connection()
+        elif platform == "ga4":
+            from app.services.ga4 import GA4Client
+            client_obj = GA4Client(
+                property_id=cred.ga4_property_id,
+                service_account_json=decrypt(cred.ga4_service_account_json_enc),
+            )
+            ok = client_obj.test_connection()
+        else:
+            raise HTTPException(status_code=400, detail=f"Unknown platform: {platform}")
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+    if ok:
+        return {"success": True, "message": "Connection successful"}
+    return {"success": False, "message": "Connection failed — check your credentials"}

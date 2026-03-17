@@ -6,6 +6,8 @@ Orchestrates a full report run for a given job ID:
   4. Run analysis
   5. Persist results to report_results table
   6. Update job status
+  7. Anomaly alert: if match rate drops >15pp below rolling 10-report average,
+     create a notification for all admin users (C3)
 """
 from datetime import datetime, timezone
 import pandas as pd
@@ -92,12 +94,67 @@ async def run_report_job(job_id: str) -> None:
             job.completed_at = datetime.now(timezone.utc)
             await db.commit()
 
+            # C3: Anomaly alert — check if match rate dropped significantly
+            await _check_anomaly(db, client, job.id, float(result.summary.get("match_rate", 0)))
+
         except Exception as e:
             job.status = "failed"
             job.error_message = str(e)
             job.completed_at = datetime.now(timezone.utc)
             await db.commit()
+            await _notify_admins_failure(db, client_id=job.client_id, job_id=job.id, error=str(e))
             raise
+
+
+async def _check_anomaly(db, client: Client, job_id: str, current_rate: float) -> None:
+    """If match rate is >15pp below rolling average of last 10 reports, notify admins."""
+    hist_result = await db.execute(
+        select(ReportResult)
+        .where(ReportResult.client_id == client.id, ReportResult.match_rate.is_not(None))
+        .order_by(ReportResult.created_at.desc())
+        .limit(11)
+    )
+    history = [r for r in hist_result.scalars().all() if r.job_id != job_id][:10]
+
+    if len(history) < 3:
+        return  # Not enough history to establish a baseline
+
+    avg = sum(float(r.match_rate) for r in history) / len(history)
+    if current_rate < avg - 15:
+        msg = (
+            f"Match rate for {client.name} dropped to {current_rate:.1f}% "
+            f"(rolling avg: {avg:.1f}%, delta: {current_rate - avg:.1f}pp)"
+        )
+        await _notify_admins(db, title=f"Anomaly alert: {client.name}", body=msg, link=f"/clients/{client.id}")
+
+
+async def _notify_admins_failure(db, client_id: str, job_id: str, error: str) -> None:
+    client_result = await db.execute(select(Client).where(Client.id == client_id))
+    client = client_result.scalar_one_or_none()
+    name = client.name if client else client_id
+    await _notify_admins(
+        db,
+        title=f"Job failed: {name}",
+        body=error[:500],
+        link="/jobs",
+    )
+
+
+async def _notify_admins(db, title: str, body: str, link: str | None = None) -> None:
+    from app.models.user import User
+    from app.models.notification import Notification
+
+    admins_result = await db.execute(
+        select(User).where(User.role == "admin", User.is_active == True)
+    )
+    for admin in admins_result.scalars().all():
+        db.add(Notification(
+            user_id=admin.id,
+            title=title,
+            body=body,
+            link=link,
+        ))
+    await db.commit()
 
 
 async def _fetch_backend(client: Client, creds: dict, date_from, date_to) -> pd.DataFrame:

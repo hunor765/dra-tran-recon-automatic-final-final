@@ -13,7 +13,11 @@ export default function ClientDetailPage() {
   const [jobs, setJobs] = useState<ReportJobResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [triggerLoading, setTriggerLoading] = useState(false);
+  const [toggleLoading, setToggleLoading] = useState(false);
+  const [impersonateLoading, setImpersonateLoading] = useState(false);
   const [periodType, setPeriodType] = useState("3month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,7 +34,12 @@ export default function ClientDetailPage() {
     setTriggerLoading(true);
     setError(null);
     try {
-      await api.post(`/admin/jobs/${id}/trigger`, { period_type: periodType });
+      const body: Record<string, string> = { period_type: periodType };
+      if (periodType === "custom") {
+        body.date_from = dateFrom;
+        body.date_to = dateTo;
+      }
+      await api.post(`/admin/jobs/${id}/trigger`, body);
       const updated = await api.get<ReportJobResponse[]>(`/admin/jobs?client_id=${id}`);
       setJobs(updated);
     } catch (e: unknown) {
@@ -40,8 +49,46 @@ export default function ClientDetailPage() {
     }
   }
 
+  async function toggleActive() {
+    if (!client) return;
+    setToggleLoading(true);
+    setError(null);
+    try {
+      const updated = await api.put<ClientResponse>(`/admin/clients/${id}`, { is_active: !client.is_active });
+      setClient(updated);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to update client");
+    } finally {
+      setToggleLoading(false);
+    }
+  }
+
+  async function impersonateClient() {
+    setImpersonateLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: id }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { detail?: string }).detail || "Impersonation failed");
+      }
+      router.push("/reports");
+      router.refresh();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Impersonation failed");
+    } finally {
+      setImpersonateLoading(false);
+    }
+  }
+
   if (loading) return <p style={{ color: "var(--muted-foreground)" }}>Loading…</p>;
   if (!client) return <p style={{ color: "var(--muted-foreground)" }}>Client not found.</p>;
+
+  const canTrigger = periodType !== "custom" || (dateFrom && dateTo);
 
   return (
     <div>
@@ -51,6 +98,9 @@ export default function ClientDetailPage() {
         <span className="text-sm px-2 py-0.5 rounded-full" style={{ background: "var(--muted)", color: "var(--muted-foreground)" }}>
           {client.platform || "manual"}
         </span>
+        {!client.is_active && (
+          <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fee2e2", color: "#991b1b" }}>Inactive</span>
+        )}
       </div>
 
       {error && (
@@ -75,17 +125,35 @@ export default function ClientDetailPage() {
               </div>
             ))}
           </dl>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex gap-2 flex-wrap">
             <Link href={`/clients/${id}/credentials`} className="btn-secondary text-sm">
               Manage Credentials
             </Link>
+            <button
+              onClick={toggleActive}
+              disabled={toggleLoading}
+              className="btn-secondary text-sm"
+              style={{ color: client.is_active ? "#991b1b" : "#166534" }}
+            >
+              {toggleLoading ? "…" : client.is_active ? "Disable" : "Enable"}
+            </button>
+            {client.user_id && (
+              <button
+                onClick={impersonateClient}
+                disabled={impersonateLoading}
+                className="btn-secondary text-sm"
+                title="Opens client portal view (replaces your admin session temporarily)"
+              >
+                {impersonateLoading ? "…" : "View as Client"}
+              </button>
+            )}
           </div>
         </div>
 
         {/* Trigger Report */}
         <div className="card">
           <h2 className="font-semibold mb-3" style={{ color: "var(--foreground)" }}>Trigger Report</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <select
               className="input flex-1"
               value={periodType}
@@ -95,11 +163,24 @@ export default function ClientDetailPage() {
               <option value="3month">3 Months</option>
               <option value="6month">6 Months</option>
               <option value="12month">12 Months</option>
+              <option value="custom">Custom range…</option>
             </select>
-            <button onClick={triggerReport} disabled={triggerLoading} className="btn-primary">
+            <button onClick={triggerReport} disabled={triggerLoading || !canTrigger} className="btn-primary">
               {triggerLoading ? "…" : "Run"}
             </button>
           </div>
+          {periodType === "custom" && (
+            <div className="flex gap-2 mt-2">
+              <div className="flex-1">
+                <label className="block text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>From</label>
+                <input type="date" className="input w-full" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs mb-1" style={{ color: "var(--muted-foreground)" }}>To</label>
+                <input type="date" className="input w-full" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            </div>
+          )}
           <p className="text-xs mt-2" style={{ color: "var(--muted-foreground)" }}>
             Requires platform credentials to be configured.
           </p>

@@ -17,20 +17,27 @@ export default function ClientReportsPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [periodType, setPeriodType] = useState("3month");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  async function load() {
+    return api.get<ReportJobResponse[]>("/reports").then(setJobs);
+  }
 
   useEffect(() => {
-    api.get<ReportJobResponse[]>("/reports")
-      .then(setJobs)
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    load().catch(console.error).finally(() => setLoading(false));
   }, []);
 
   async function generateReport() {
     setGenerating(true);
     try {
-      await api.post("/reports/generate", { period_type: periodType });
-      const updated = await api.get<ReportJobResponse[]>("/reports");
-      setJobs(updated);
+      const body: Record<string, string> = { period_type: periodType };
+      if (periodType === "custom") {
+        body.date_from = dateFrom;
+        body.date_to = dateTo;
+      }
+      await api.post("/reports/generate", body);
+      await load();
     } catch (e) {
       console.error(e);
     } finally {
@@ -38,30 +45,72 @@ export default function ClientReportsPage() {
     }
   }
 
+  const completed = jobs.filter((j) => j.status === "completed");
+  const latest = completed[0] ?? null;
+  const canGenerate = periodType !== "custom" || (dateFrom && dateTo);
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>My Reports</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-end flex-wrap">
           <select className="input" style={{ width: "auto" }} value={periodType} onChange={(e) => setPeriodType(e.target.value)}>
             <option value="daily">Daily</option>
             <option value="3month">3 Months</option>
             <option value="6month">6 Months</option>
             <option value="12month">12 Months</option>
+            <option value="custom">Custom…</option>
           </select>
-          <button onClick={generateReport} disabled={generating} className="btn-primary">
+          {periodType === "custom" && (
+            <>
+              <input type="date" className="input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              <input type="date" className="input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </>
+          )}
+          <button onClick={generateReport} disabled={generating || !canGenerate} className="btn-primary">
             {generating ? "Generating…" : "Generate Report"}
           </button>
         </div>
       </div>
 
+      {/* Latest report summary card */}
+      {latest && (
+        <div className="card mb-6 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium mb-1" style={{ color: "var(--muted-foreground)" }}>Latest completed report</p>
+            <p className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+              {latest.period_type} · {latest.date_from} → {latest.date_to}
+            </p>
+            <p className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>
+              {new Date(latest.created_at).toLocaleDateString()}
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            {completed.length > 1 && (
+              <div className="hidden sm:block">
+                <p className="text-xs mb-1 text-center" style={{ color: "var(--muted-foreground)" }}>
+                  {completed.length} completed
+                </p>
+                <ReportTrend count={Math.min(completed.length, 10)} />
+              </div>
+            )}
+            <Link href={`/reports/${latest.id}`} className="btn-primary text-sm">
+              View latest →
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Report list */}
       <div className="card">
         {loading ? (
           <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Loading…</p>
         ) : jobs.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-sm mb-2" style={{ color: "var(--muted-foreground)" }}>No reports yet.</p>
-            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>Click "Generate Report" to create your first reconciliation report.</p>
+            <p className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+              Click "Generate Report" to create your first reconciliation report.
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -107,5 +156,19 @@ export default function ClientReportsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+function ReportTrend({ count }: { count: number }) {
+  return (
+    <svg width={count * 8} height={24} style={{ display: "block" }}>
+      {Array.from({ length: count }).map((_, i) => {
+        const h = 6 + (i / count) * 14;
+        return (
+          <rect key={i} x={i * 8} y={24 - h} width={6} height={h}
+            rx={1} fill="var(--revolt-red)" opacity={0.4 + (i / count) * 0.6} />
+        );
+      })}
+    </svg>
   );
 }

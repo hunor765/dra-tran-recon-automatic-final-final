@@ -16,31 +16,73 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<ReportJobResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [bulkPeriod, setBulkPeriod] = useState("3month");
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<string | null>(null);
 
   useEffect(() => {
+    load();
+  }, [statusFilter]);
+
+  async function load() {
+    setLoading(true);
     const qs = statusFilter ? `?status=${statusFilter}` : "";
     api.get<ReportJobResponse[]>(`/admin/jobs${qs}`)
       .then(setJobs)
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }
+
+  async function triggerAll() {
+    if (!confirm(`Trigger ${bulkPeriod} reports for ALL active clients with credentials?`)) return;
+    setBulkLoading(true);
+    setBulkResult(null);
+    try {
+      const res = await api.post<{ jobs_created: number }>("/admin/jobs/trigger-all", { period_type: bulkPeriod });
+      setBulkResult(`${res.jobs_created} jobs created`);
+      await load();
+    } catch (e: unknown) {
+      setBulkResult(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBulkLoading(false);
+    }
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold" style={{ color: "var(--foreground)" }}>All Jobs</h1>
-        <select
-          className="input"
-          style={{ width: "auto" }}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="">All statuses</option>
-          <option value="pending">Pending</option>
-          <option value="running">Running</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
+        <div className="flex items-center gap-2">
+          <select
+            className="input"
+            style={{ width: "auto" }}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+          >
+            <option value="">All statuses</option>
+            <option value="pending">Pending</option>
+            <option value="running">Running</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Bulk trigger */}
+      <div className="card mb-6 flex items-center gap-3">
+        <p className="text-sm font-medium flex-1" style={{ color: "var(--foreground)" }}>Run all active clients:</p>
+        <select className="input" style={{ width: "auto" }} value={bulkPeriod} onChange={(e) => setBulkPeriod(e.target.value)}>
+          <option value="daily">Daily</option>
+          <option value="3month">3 Months</option>
+          <option value="6month">6 Months</option>
+          <option value="12month">12 Months</option>
         </select>
+        <button onClick={triggerAll} disabled={bulkLoading} className="btn-primary">
+          {bulkLoading ? "Triggering…" : "Run All Clients"}
+        </button>
+        {bulkResult && (
+          <span className="text-sm" style={{ color: "var(--muted-foreground)" }}>{bulkResult}</span>
+        )}
       </div>
 
       <div className="card">

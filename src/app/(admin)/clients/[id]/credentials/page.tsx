@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { CredentialResponse } from "@/lib/types";
@@ -10,13 +10,14 @@ type Platform = "woocommerce" | "shopify" | "ga4";
 
 export default function CredentialsPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
   const [creds, setCreds] = useState<CredentialResponse[]>([]);
   const [activePlatform, setActivePlatform] = useState<Platform>("woocommerce");
   const [form, setForm] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [testLoading, setTestLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   useEffect(() => {
     api.get<CredentialResponse[]>(`/admin/clients/${id}/credentials`)
@@ -29,7 +30,7 @@ export default function CredentialsPage() {
   }
 
   async function save() {
-    setLoading(true); setError(null); setSuccess(null);
+    setLoading(true); setError(null); setSuccess(null); setTestResult(null);
     try {
       await api.put(`/admin/clients/${id}/credentials/${activePlatform}`, form);
       setSuccess("Credentials saved successfully.");
@@ -39,6 +40,20 @@ export default function CredentialsPage() {
       setError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function testConnection() {
+    setTestLoading(true); setTestResult(null); setError(null);
+    try {
+      const res = await api.post<{ success: boolean; message: string }>(
+        `/admin/clients/${id}/credentials/${activePlatform}/test`, {}
+      );
+      setTestResult(res);
+    } catch (e: unknown) {
+      setTestResult({ success: false, message: e instanceof Error ? e.message : "Test failed" });
+    } finally {
+      setTestLoading(false);
     }
   }
 
@@ -56,7 +71,7 @@ export default function CredentialsPage() {
         {(["woocommerce", "shopify", "ga4"] as Platform[]).map((p) => (
           <button
             key={p}
-            onClick={() => { setActivePlatform(p); setForm({}); setError(null); setSuccess(null); }}
+            onClick={() => { setActivePlatform(p); setForm({}); setError(null); setSuccess(null); setTestResult(null); }}
             className="flex-1 py-1.5 rounded-md text-sm font-medium capitalize transition-colors"
             style={{
               background: activePlatform === p ? "white" : "transparent",
@@ -73,6 +88,14 @@ export default function CredentialsPage() {
 
       {error && <div className="rounded-md p-3 mb-4 text-sm" style={{ background: "#fef2f2", color: "#991b1b" }}>{error}</div>}
       {success && <div className="rounded-md p-3 mb-4 text-sm" style={{ background: "#f0fdf4", color: "#166534" }}>{success}</div>}
+      {testResult && (
+        <div className="rounded-md p-3 mb-4 text-sm" style={{
+          background: testResult.success ? "#f0fdf4" : "#fef2f2",
+          color: testResult.success ? "#166534" : "#991b1b",
+        }}>
+          {testResult.success ? "✓ " : "✗ "}{testResult.message}
+        </div>
+      )}
 
       <div className="card flex flex-col gap-4">
         {activePlatform === "woocommerce" && (
@@ -129,9 +152,19 @@ export default function CredentialsPage() {
           </>
         )}
 
-        <button onClick={save} disabled={loading} className="btn-primary">
-          {loading ? "Saving…" : "Save Credentials"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={save} disabled={loading} className="btn-primary flex-1">
+            {loading ? "Saving…" : "Save Credentials"}
+          </button>
+          <button
+            onClick={testConnection}
+            disabled={testLoading || !existing}
+            className="btn-secondary"
+            title={existing ? "Test saved credentials" : "Save credentials first"}
+          >
+            {testLoading ? "Testing…" : "Test Connection"}
+          </button>
+        </div>
       </div>
     </div>
   );
