@@ -24,13 +24,20 @@ export async function middleware(request: NextRequest) {
       new TextEncoder().encode(process.env.JWT_SECRET || "change-me")
     );
     const role = payload.role as string;
+    const totpEnabled = payload.totp_enabled as boolean | undefined;
+
+    // Admin without TOTP — force setup before accessing anything else
+    if (role === "admin" && !totpEnabled && !pathname.startsWith("/settings/totp")) {
+      return NextResponse.redirect(new URL("/settings/totp", request.url));
+    }
 
     // Admin-only paths
     const isAdminPath =
       pathname.startsWith("/dashboard") ||
       pathname.startsWith("/clients") ||
       pathname.startsWith("/jobs") ||
-      pathname.startsWith("/manual");
+      pathname.startsWith("/manual") ||
+      pathname.startsWith("/settings");
 
     // Client-only paths
     const isClientPath =
