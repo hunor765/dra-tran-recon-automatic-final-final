@@ -53,7 +53,7 @@ export default function JobsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["Client", "Period", "Date Range", "Source", "Status", "Created", "Error"].map((h) => (
+                  {["Client", "Period", "Date Range", "Source", "Status", "Created", "Error", ""].map((h) => (
                     <th key={h} className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>{h}</th>
                   ))}
                 </tr>
@@ -84,6 +84,13 @@ export default function JobsPage() {
                       </td>
                       <td className="py-2 max-w-xs truncate" style={{ color: "#991b1b" }}>
                         {job.error_message || ""}
+                      </td>
+                      <td className="py-2">
+                        {job.status === "completed" && (
+                          <Link href={`/clients/${job.client_id}/reports/${job.id}`} className="text-sm" style={{ color: "var(--primary)" }}>
+                            View →
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   );

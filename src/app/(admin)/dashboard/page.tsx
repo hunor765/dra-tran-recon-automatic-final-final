@@ -75,7 +75,8 @@ export default function DashboardPage() {
                   <th className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>Client</th>
                   <th className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>Period</th>
                   <th className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>Status</th>
-                  <th className="text-left py-2 font-medium" style={{ color: "var(--muted-foreground)" }}>Created</th>
+                  <th className="text-left py-2 pr-4 font-medium" style={{ color: "var(--muted-foreground)" }}>Created</th>
+                  <th className="text-left py-2 font-medium" style={{ color: "var(--muted-foreground)" }}></th>
                 </tr>
               </thead>
               <tbody>
@@ -86,8 +87,15 @@ export default function DashboardPage() {
                     <td className="py-2 pr-4">
                       <StatusBadge status={job.status} />
                     </td>
-                    <td className="py-2" style={{ color: "var(--muted-foreground)" }}>
+                    <td className="py-2 pr-4" style={{ color: "var(--muted-foreground)" }}>
                       {new Date(job.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-2">
+                      {job.status === "completed" && (
+                        <Link href={`/clients/${job.client_id}/reports/${job.id}`} className="text-sm" style={{ color: "var(--primary)" }}>
+                          View →
+                        </Link>
+                      )}
                     </td>
                   </tr>
                 ))}
