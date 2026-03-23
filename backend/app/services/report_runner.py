@@ -10,6 +10,8 @@ Orchestrates a full report run for a given job ID:
      create a notification for all admin users (C3)
 """
 from datetime import datetime, timezone
+import json
+import numpy as np
 import pandas as pd
 
 from app.database import AsyncSessionLocal
@@ -20,6 +22,25 @@ from app.models.credential import Credential
 from app.services.analysis import ColumnMapping, run_analysis
 from app.services.encryption import decrypt
 from sqlalchemy import select
+
+
+class _NumpyEncoder(json.JSONEncoder):
+    """Convert numpy types to native Python types for JSON serialization."""
+    def default(self, obj):
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        return super().default(obj)
+
+
+def _sanitize_for_json(obj):
+    """Recursively convert numpy types to native Python types."""
+    return json.loads(json.dumps(obj, cls=_NumpyEncoder))
 
 
 async def run_report_job(job_id: str) -> None:
@@ -79,11 +100,12 @@ async def run_report_job(job_id: str) -> None:
             # Run analysis
             result = run_analysis(ga4_df, backend_df, mapping)
 
-            # Persist result
+            # Persist result — sanitize numpy types for JSONB serialization
+            result_dict = _sanitize_for_json(result.model_dump())
             report_result = ReportResult(
                 job_id=job.id,
                 client_id=job.client_id,
-                result_json=result.model_dump(),
+                result_json=result_dict,
                 row_count_backend=result.summary.get("backend_total"),
                 row_count_ga4=result.summary.get("ga4_total"),
                 match_rate=result.summary.get("match_rate"),
@@ -98,11 +120,19 @@ async def run_report_job(job_id: str) -> None:
             await _check_anomaly(db, client, job.id, float(result.summary.get("match_rate", 0)))
 
         except Exception as e:
-            job.status = "failed"
-            job.error_message = str(e)
-            job.completed_at = datetime.now(timezone.utc)
-            await db.commit()
-            await _notify_admins_failure(db, client_id=job.client_id, job_id=job.id, error=str(e))
+            await db.rollback()
+            # Re-fetch job after rollback to update status
+            job_result2 = await db.execute(select(ReportJob).where(ReportJob.id == job_id))
+            job = job_result2.scalar_one_or_none()
+            if job:
+                job.status = "failed"
+                job.error_message = str(e)[:500]
+                job.completed_at = datetime.now(timezone.utc)
+                await db.commit()
+            try:
+                await _notify_admins_failure(db, client_id=job.client_id if job else "", job_id=job_id, error=str(e))
+            except Exception:
+                pass  # Don't let notification failure mask the original error
             raise
 
 
