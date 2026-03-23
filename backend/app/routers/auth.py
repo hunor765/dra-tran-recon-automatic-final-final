@@ -162,6 +162,8 @@ async def totp_verify(data: TotpVerifyRequest, db: AsyncSession = Depends(get_db
 async def totp_setup(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     if current_user.role != "admin":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
+    if current_user.totp_secret_enc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP is already configured. Disable it first to reconfigure.")
 
     secret = pyotp.random_base32()
     uri = pyotp.TOTP(secret).provisioning_uri(name=current_user.email, issuer_name="DRA Platform")
@@ -188,7 +190,32 @@ async def totp_setup_confirm(data: TotpConfirmRequest, current_user: User = Depe
     if not pyotp.TOTP(secret).verify(data.totp_code, valid_window=1):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid code — scan the QR code again")
 
-    return {"detail": "2FA enabled successfully"}
+    # Issue new tokens with totp_enabled=True so middleware allows navigation
+    client_id = await get_client_id_for_user(current_user, db)
+    access_token = create_access_token(current_user.id, current_user.role, client_id, totp_enabled=True)
+    refresh_token = await create_refresh_token(current_user.id, db)
+    return _token_response(current_user, access_token, refresh_token, client_id)
+
+
+@router.post("/totp/disable")
+async def totp_disable(data: TotpConfirmRequest, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admins only")
+    if not current_user.totp_secret_enc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="TOTP is not enabled")
+
+    secret = decrypt(current_user.totp_secret_enc)
+    if not pyotp.TOTP(secret).verify(data.totp_code, valid_window=1):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid 2FA code")
+
+    current_user.totp_secret_enc = None
+    await db.commit()
+
+    # Issue new tokens with totp_enabled=False
+    client_id = await get_client_id_for_user(current_user, db)
+    access_token = create_access_token(current_user.id, current_user.role, client_id, totp_enabled=False)
+    refresh_token = await create_refresh_token(current_user.id, db)
+    return _token_response(current_user, access_token, refresh_token, client_id)
 
 
 @router.post("/refresh")
