@@ -624,6 +624,25 @@ function renderSourceMedium(b: PdfBuilder, data: AnalysisResult['source_medium_a
   renderTable(b, 'Session Source / Medium (Matched)', cols, rows);
 }
 
+function renderSectionNote(b: PdfBuilder, note: string | undefined, sectionLabel: string): void {
+  if (!note || !note.trim()) return;
+
+  b.pdf.setFontSize(8);
+  const lines = b.pdf.splitTextToSize(note.trim(), W - 16);
+  const textH = lines.length * 3.5;
+  const cardH = 10 + textH + 4;
+
+  b.ensureSpace(Math.min(cardH, 30));
+  const startY = b.y;
+
+  b.filledStrokedRect(M, startY, W, cardH, [252, 252, 252] as any, C.border, CARD_R);
+  b.fillRect(M, startY, 2, cardH, C.red, 0);
+  b.text(`Note: ${sectionLabel}`, M + 6, startY + 6, { fontSize: 7, bold: true, color: C.mutedFg });
+  b.wrappedText(note.trim(), M + 6, startY + 11, W - 16, { fontSize: 8, color: C.fg, lineHeight: 3.5 });
+
+  b.y = startY + cardH + 2;
+}
+
 function renderSpecialistNotes(b: PdfBuilder, notes: string): void {
   if (!notes || !notes.trim()) return;
 
@@ -656,23 +675,32 @@ function renderFooter(b: PdfBuilder): void {
 
 export async function generatePdf(
   results: AnalysisResult,
-  specialistNotes: string
+  specialistNotes: string,
+  sectionNotes?: Record<string, string>
 ): Promise<void> {
   const { jsPDF } = await import('jspdf');
 
   const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const b = new PdfBuilder(pdf);
+  const sn = sectionNotes || {};
 
   renderHeader(b);
   renderHeroBanner(b, results);
   renderSummaryCards(b, results);
+  renderSectionNote(b, sn.summary, 'Summary');
   renderChart(b, results.temporal_analysis);
+  renderSectionNote(b, sn.temporal, 'Temporal Analysis');
   renderRecommendations(b, results.recommendations);
+  renderSectionNote(b, sn.recommendations, 'Recommendations');
   renderStatusTable(b, results.status_analysis);
+  renderSectionNote(b, sn.status, 'Order Status');
   renderShippingTable(b, results.shipping_analysis);
+  renderSectionNote(b, sn.shipping, 'Shipping');
   renderPaymentTable(b, results.payment_analysis);
   renderTechBreakdown(b, results.tech_analysis);
+  renderSectionNote(b, sn.payment_tech, 'Payment & Tech');
   renderSourceMedium(b, results.source_medium_analysis);
+  renderSectionNote(b, sn.source_medium, 'Source/Medium');
   renderSpecialistNotes(b, specialistNotes);
   renderFooter(b);
 

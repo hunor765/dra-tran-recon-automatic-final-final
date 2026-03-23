@@ -35,17 +35,42 @@ export interface ReportJobResponse {
   created_at: string;
 }
 
+export type SectionNoteKey =
+  | "summary"
+  | "temporal"
+  | "recommendations"
+  | "status"
+  | "shipping"
+  | "payment_tech"
+  | "source_medium";
+
+export type SectionNotes = Partial<Record<SectionNoteKey, string>>;
+
 export interface ReportResultResponse {
   id: string;
   job_id: string;
   client_id: string;
   result_json: AnalysisResult;
   specialist_notes?: string | null;
+  section_notes?: SectionNotes | null;
   row_count_backend?: number | null;
   row_count_ga4?: number | null;
   match_rate?: number | null;
   created_at: string;
   job?: ReportJobResponse | null;
+}
+
+export interface ClientScorecard {
+  has_data: boolean;
+  avg_match_rate: number | null;
+  avg_exact_match_rate: number | null;
+  total_backend_value: number;
+  total_ga4_value: number;
+  total_discrepancy: number;
+  jobs_completed: number;
+  jobs_failed: number;
+  match_rate_trend: Array<{ date: string; match_rate: number | null }>;
+  trend_direction: "up" | "down" | "stable";
 }
 
 // Analysis types (matches backend AnalysisResult)

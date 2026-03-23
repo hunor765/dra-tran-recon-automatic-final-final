@@ -32,6 +32,7 @@ class ReportResultResponse(BaseModel):
     client_id: str
     result_json: Any
     specialist_notes: Optional[str] = None
+    section_notes: Optional[dict] = None
     row_count_backend: Optional[int] = None
     row_count_ga4: Optional[int] = None
     match_rate: Optional[float] = None
@@ -42,4 +43,5 @@ class ReportResultResponse(BaseModel):
 
 
 class UpdateNotesRequest(BaseModel):
-    specialist_notes: str
+    specialist_notes: Optional[str] = None
+    section_notes: Optional[dict] = None

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import ClientScorecard from "@/components/reports/ClientScorecard";
 import type { ClientResponse, ReportJobResponse } from "@/lib/types";
 
 export default function ClientDetailPage() {
@@ -185,6 +186,11 @@ export default function ClientDetailPage() {
             Requires platform credentials to be configured.
           </p>
         </div>
+      </div>
+
+      {/* 3-Month Scorecard */}
+      <div className="mt-6">
+        <ClientScorecard clientId={id} />
       </div>
 
       {/* Jobs */}

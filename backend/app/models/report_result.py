@@ -15,6 +15,7 @@ class ReportResult(Base):
     client_id: Mapped[str] = mapped_column(String(36), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
     result_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
     specialist_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    section_notes: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     row_count_backend: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     row_count_ga4: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     match_rate: Mapped[Optional[float]] = mapped_column(Numeric(5, 2), nullable=True)

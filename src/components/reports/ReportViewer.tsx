@@ -1,12 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, SectionNoteKey, SectionNotes } from "@/lib/types";
 
 interface Props {
   result: AnalysisResult;
   notes?: string;
   onNotesChange?: (v: string) => void;
+  sectionNotes?: SectionNotes;
+  onSectionNoteChange?: (key: SectionNoteKey, value: string) => void;
   onDownloadPdf?: () => void;
   onReset?: () => void;
   reportId?: string;
@@ -27,7 +29,36 @@ const priorityClass = (p: string) =>
     ? "bg-warning/15 text-warning border-warning/30"
     : "bg-info/15 text-info border-info/30";
 
-export default function ReportViewer({ result, notes = "", onNotesChange, onDownloadPdf, onReset, reportId }: Props) {
+function SectionNoteBox({
+  sectionKey,
+  value,
+  onChange,
+}: {
+  sectionKey: SectionNoteKey;
+  value: string;
+  onChange?: (key: SectionNoteKey, val: string) => void;
+}) {
+  if (!onChange) return null;
+  return (
+    <div className="mb-8 mt-2">
+      <textarea
+        value={value}
+        onChange={(e) => {
+          if (e.target.value.length <= 2000) onChange(sectionKey, e.target.value);
+        }}
+        maxLength={2000}
+        rows={3}
+        placeholder="Add interpretation for this section..."
+        className="w-full px-3 py-2 bg-background border border-border rounded-lg text-foreground text-sm resize-y focus:outline-none focus:ring-2 focus:ring-revolt-red/30 focus:border-revolt-red transition-colors"
+      />
+      <p className="text-xs text-muted-foreground mt-1 text-right">
+        {value.length.toLocaleString()} / 2,000
+      </p>
+    </div>
+  );
+}
+
+export default function ReportViewer({ result, notes = "", onNotesChange, sectionNotes = {}, onSectionNoteChange, onDownloadPdf, onReset, reportId }: Props) {
   const [hoveredPoint, setHoveredPoint] = useState<number | null>(null);
   const [localNotes, setLocalNotes] = useState(notes);
   const notesValue = onNotesChange ? notes : localNotes;
@@ -87,6 +118,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           <p className="text-2xl font-bold text-success">{result.value_comparison.exact_match_rate}%</p>
         </div>
       </div>
+      <SectionNoteBox sectionKey="summary" value={sectionNotes?.summary || ""} onChange={onSectionNoteChange} />
 
       {/* Temporal Chart */}
       {result.temporal_analysis?.length > 0 && (
@@ -177,6 +209,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         </div>
       )}
+      <SectionNoteBox sectionKey="temporal" value={sectionNotes?.temporal || ""} onChange={onSectionNoteChange} />
 
       {/* Recommendations */}
       {result.recommendations.length > 0 && (
@@ -203,6 +236,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         </div>
       )}
+      <SectionNoteBox sectionKey="recommendations" value={sectionNotes?.recommendations || ""} onChange={onSectionNoteChange} />
 
       {/* Status Analysis */}
       {result.status_analysis?.length > 0 && (
@@ -239,6 +273,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         </div>
       )}
+      <SectionNoteBox sectionKey="status" value={sectionNotes?.status || ""} onChange={onSectionNoteChange} />
 
       {/* Shipping Analysis */}
       {result.shipping_analysis?.length > 0 && (
@@ -275,6 +310,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         </div>
       )}
+      <SectionNoteBox sectionKey="shipping" value={sectionNotes?.shipping || ""} onChange={onSectionNoteChange} />
 
       {/* Payment + Tech row */}
       <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -353,6 +389,7 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         )}
       </div>
+      <SectionNoteBox sectionKey="payment_tech" value={sectionNotes?.payment_tech || ""} onChange={onSectionNoteChange} />
 
       {/* Source/Medium */}
       {result.source_medium_analysis?.length > 0 && (
@@ -382,12 +419,13 @@ export default function ReportViewer({ result, notes = "", onNotesChange, onDown
           </div>
         </div>
       )}
+      <SectionNoteBox sectionKey="source_medium" value={sectionNotes?.source_medium || ""} onChange={onSectionNoteChange} />
 
       {/* Specialist Notes */}
       <div className="card mb-8">
         <h3 className="font-semibold text-foreground mb-2">Specialist Interpretation</h3>
         <p className="text-sm text-muted-foreground mb-4">
-          Add your analysis and recommendations. This will be included in the PDF report.
+          Add your overall analysis and recommendations. This will be included in the PDF report.
         </p>
         <textarea
           value={notesValue}

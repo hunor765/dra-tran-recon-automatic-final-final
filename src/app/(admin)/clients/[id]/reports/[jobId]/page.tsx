@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { generatePdf } from "@/lib/generatePdf";
 import ReportViewer from "@/components/reports/ReportViewer";
-import type { ReportResultResponse } from "@/lib/types";
+import ClientScorecard from "@/components/reports/ClientScorecard";
+import type { ReportResultResponse, SectionNotes, SectionNoteKey } from "@/lib/types";
 
 export default function AdminReportViewerPage() {
   const { id, jobId } = useParams<{ id: string; jobId: string }>();
@@ -14,14 +15,21 @@ export default function AdminReportViewerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState("");
+  const [sectionNotes, setSectionNotes] = useState<SectionNotes>({});
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+
+  const sectionNotesRef = useRef<SectionNotes>({});
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
     api.get<ReportResultResponse>(`/admin/jobs/${jobId}/result`)
       .then((r) => {
         setReport(r);
         setNotes(r.specialist_notes || "");
+        const sn = (r.section_notes || {}) as SectionNotes;
+        setSectionNotes(sn);
+        sectionNotesRef.current = sn;
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -39,9 +47,29 @@ export default function AdminReportViewerPage() {
     }
   }
 
+  function handleSectionNoteChange(key: SectionNoteKey, value: string) {
+    const updated = { ...sectionNotes, [key]: value };
+    setSectionNotes(updated);
+    sectionNotesRef.current = updated;
+
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await api.put(`/admin/jobs/${jobId}/notes`, {
+          section_notes: sectionNotesRef.current,
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setSaving(false);
+      }
+    }, 500);
+  }
+
   async function downloadPdf() {
     if (!report) return;
-    await generatePdf(report.result_json as Parameters<typeof generatePdf>[0], notes);
+    await generatePdf(report.result_json as Parameters<typeof generatePdf>[0], notes, sectionNotes);
   }
 
   async function createShareLink() {
@@ -103,10 +131,14 @@ export default function AdminReportViewerPage() {
         </div>
       )}
 
+      <ClientScorecard clientId={id} />
+
       <ReportViewer
         result={report.result_json}
         notes={notes}
         onNotesChange={saveNotes}
+        sectionNotes={sectionNotes}
+        onSectionNoteChange={handleSectionNoteChange}
         onDownloadPdf={downloadPdf}
         reportId={jobId}
       />

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { generatePdf } from "@/lib/generatePdf";
 import ReportViewer from "@/components/reports/ReportViewer";
-import type { AnalysisResult } from "@/lib/types";
+import type { AnalysisResult, ClientResponse } from "@/lib/types";
 
 interface UploadResponse {
   success: boolean;
@@ -30,6 +31,32 @@ export default function ManualAnalysisPage() {
   const [sessionId, setSessionId] = useState("");
   const [dragActiveGa4, setDragActiveGa4] = useState(false);
   const [dragActiveBackend, setDragActiveBackend] = useState(false);
+
+  // Client selector state
+  const [clients, setClients] = useState<ClientResponse[]>([]);
+  const [selectedClient, setSelectedClient] = useState<ClientResponse | null>(null);
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientDropdownOpen, setClientDropdownOpen] = useState(false);
+  const [persistedJobId, setPersistedJobId] = useState<string | null>(null);
+  const clientRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.get<ClientResponse[]>("/admin/clients").then(setClients).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (clientRef.current && !clientRef.current.contains(e.target as Node)) {
+        setClientDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredClients = clients.filter((c) =>
+    c.name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
 
   const [mapping, setMapping] = useState({
     ga4_transaction_id: "", ga4_value: "", ga4_date: "",
@@ -86,9 +113,17 @@ export default function ManualAnalysisPage() {
   const runAnalysis = async () => {
     setLoading(true);
     setError(null);
+    setPersistedJobId(null);
     try {
-      const data = await api.post<AnalysisResult>("/analyze", { ...mapping, session_id: sessionId });
-      setResults(data);
+      const queryParam = selectedClient ? `?client_id=${selectedClient.id}` : "";
+      const data = await api.post<{ result: AnalysisResult; job_id?: string; persisted?: boolean }>(
+        `/admin/manual-analyze${queryParam}`,
+        { ...mapping, session_id: sessionId }
+      );
+      setResults(data.result);
+      if (data.persisted && data.job_id) {
+        setPersistedJobId(data.job_id);
+      }
       setStep("results");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Analysis failed");
@@ -106,6 +141,9 @@ export default function ManualAnalysisPage() {
     setBackendColumns([]);
     setSpecialistNotes("");
     setSessionId("");
+    setSelectedClient(null);
+    setClientSearch("");
+    setPersistedJobId(null);
     setMapping({
       ga4_transaction_id: "", ga4_value: "", ga4_date: "",
       backend_transaction_id: "", backend_value: "", backend_date: "",
@@ -152,6 +190,56 @@ export default function ManualAnalysisPage() {
       {/* Step 1: Upload */}
       {step === "upload" && (
         <>
+          {/* Client Selector */}
+          <div className="card mb-6">
+            <h3 className="font-semibold text-foreground mb-2">Link to Client (Optional)</h3>
+            <p className="text-xs text-muted-foreground mb-3">Select a client to save this analysis to their report history, or leave empty for a one-off analysis.</p>
+            <div className="relative" ref={clientRef}>
+              <input
+                type="text"
+                className="input w-full"
+                placeholder="Search clients…"
+                value={selectedClient ? selectedClient.name : clientSearch}
+                onChange={(e) => {
+                  setClientSearch(e.target.value);
+                  setSelectedClient(null);
+                  setClientDropdownOpen(true);
+                }}
+                onFocus={() => setClientDropdownOpen(true)}
+              />
+              {selectedClient && (
+                <button
+                  onClick={() => { setSelectedClient(null); setClientSearch(""); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm"
+                >
+                  ✕
+                </button>
+              )}
+              {clientDropdownOpen && !selectedClient && (
+                <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto rounded-md border bg-card shadow-lg">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted"
+                    onClick={() => { setSelectedClient(null); setClientSearch(""); setClientDropdownOpen(false); }}
+                  >
+                    No Client (one-off analysis)
+                  </button>
+                  {filteredClients.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-muted"
+                      onClick={() => { setSelectedClient(c); setClientSearch(""); setClientDropdownOpen(false); }}
+                    >
+                      {c.name} <span className="text-xs text-muted-foreground ml-1">{c.platform || "manual"}</span>
+                    </button>
+                  ))}
+                  {filteredClients.length === 0 && clientSearch && (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No clients found</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="text-center mb-8">
             <h2 className="text-2xl font-bold text-foreground mb-2">Know exactly how much revenue your GA4 is missing</h2>
             <p className="text-muted-foreground">Upload your GA4 export and ecommerce backend data to identify tracking gaps.</p>
@@ -313,7 +401,18 @@ export default function ManualAnalysisPage() {
 
       {/* Step 3: Results */}
       {step === "results" && results && (
-        <ReportViewer
+        <>
+          {persistedJobId && selectedClient && (
+            <div className="rounded-md p-3 mb-6 flex items-center justify-between text-sm" style={{ background: "#dcfce7", color: "#166534" }}>
+              <span>
+                Report saved to <strong>{selectedClient.name}</strong>&apos;s history.
+              </span>
+              <Link href={`/clients/${selectedClient.id}/reports/${persistedJobId}`} className="font-medium underline">
+                View Report →
+              </Link>
+            </div>
+          )}
+          <ReportViewer
           result={results}
           notes={specialistNotes}
           onNotesChange={setSpecialistNotes}
@@ -329,6 +428,7 @@ export default function ManualAnalysisPage() {
           }}
           onReset={resetAnalysis}
         />
+        </>
       )}
     </div>
   );

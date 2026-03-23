@@ -204,7 +204,10 @@ async def update_job_notes(
     report = result.scalar_one_or_none()
     if not report:
         raise HTTPException(status_code=404, detail="Report result not found")
-    report.specialist_notes = data.specialist_notes
+    if data.specialist_notes is not None:
+        report.specialist_notes = data.specialist_notes
+    if data.section_notes is not None:
+        report.section_notes = data.section_notes
     await db.commit()
     return {"detail": "Notes saved"}
 

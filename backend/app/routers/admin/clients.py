@@ -1,4 +1,5 @@
 import re
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,8 @@ from app.database import get_db
 from app.deps import require_admin
 from app.models.client import Client
 from app.models.user import User
+from app.models.report_result import ReportResult
+from app.models.report_job import ReportJob
 from app.schemas.client import ClientCreate, ClientUpdate, ClientResponse
 from app.services.audit import log_action
 
@@ -217,3 +220,97 @@ async def remove_member(
         await db.delete(member)
         await log_action(db, admin, "client.member_removed", "client", client_id, user_id)
         await db.commit()
+
+
+# ── Scorecard: 3-month rolling KPIs ──────────────────────────────────────────
+
+@router.get("/{client_id}/scorecard")
+async def get_client_scorecard(
+    client_id: str,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    result = await db.execute(select(Client).where(Client.id == client_id))
+    client = result.scalar_one_or_none()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=90)
+
+    results_q = await db.execute(
+        select(ReportResult)
+        .where(ReportResult.client_id == client_id, ReportResult.created_at >= cutoff)
+        .order_by(ReportResult.created_at.asc())
+    )
+    results = results_q.scalars().all()
+
+    jobs_q = await db.execute(
+        select(ReportJob)
+        .where(ReportJob.client_id == client_id, ReportJob.created_at >= cutoff)
+    )
+    all_jobs = jobs_q.scalars().all()
+    jobs_completed = sum(1 for j in all_jobs if j.status == "completed")
+    jobs_failed = sum(1 for j in all_jobs if j.status == "failed")
+
+    if not results:
+        return {
+            "has_data": False,
+            "avg_match_rate": None,
+            "avg_exact_match_rate": None,
+            "total_backend_value": 0,
+            "total_ga4_value": 0,
+            "total_discrepancy": 0,
+            "jobs_completed": jobs_completed,
+            "jobs_failed": jobs_failed,
+            "match_rate_trend": [],
+            "trend_direction": "stable",
+        }
+
+    match_rates = [float(r.match_rate) for r in results if r.match_rate is not None]
+    avg_match_rate = round(sum(match_rates) / len(match_rates), 1) if match_rates else None
+
+    exact_match_rates = []
+    total_backend_value = 0.0
+    total_ga4_value = 0.0
+
+    for r in results:
+        rj = r.result_json or {}
+        summary = rj.get("summary", {})
+        total_backend_value += summary.get("backend_total_value", 0)
+        total_ga4_value += summary.get("ga4_total_value", 0)
+        vc = rj.get("value_comparison", {})
+        emr = vc.get("exact_match_rate")
+        if emr is not None:
+            exact_match_rates.append(emr)
+
+    avg_exact_match_rate = round(sum(exact_match_rates) / len(exact_match_rates), 1) if exact_match_rates else None
+    total_discrepancy = round(abs(total_backend_value - total_ga4_value), 2)
+
+    match_rate_trend = [
+        {"date": r.created_at.strftime("%Y-%m-%d"), "match_rate": float(r.match_rate) if r.match_rate else None}
+        for r in results if r.match_rate is not None
+    ]
+
+    trend_direction = "stable"
+    if len(match_rates) >= 4:
+        mid = len(match_rates) // 2
+        first_half_avg = sum(match_rates[:mid]) / mid
+        second_half_avg = sum(match_rates[mid:]) / (len(match_rates) - mid)
+        delta = second_half_avg - first_half_avg
+        if delta > 2:
+            trend_direction = "up"
+        elif delta < -2:
+            trend_direction = "down"
+
+    return {
+        "has_data": True,
+        "avg_match_rate": avg_match_rate,
+        "avg_exact_match_rate": avg_exact_match_rate,
+        "total_backend_value": round(total_backend_value, 2),
+        "total_ga4_value": round(total_ga4_value, 2),
+        "total_discrepancy": total_discrepancy,
+        "jobs_completed": jobs_completed,
+        "jobs_failed": jobs_failed,
+        "match_rate_trend": match_rate_trend,
+        "trend_direction": trend_direction,
+    }
