@@ -20,7 +20,7 @@ export default function AdminReportViewerPage() {
   const [sharing, setSharing] = useState(false);
 
   const sectionNotesRef = useRef<SectionNotes>({});
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   useEffect(() => {
     api.get<ReportResultResponse>(`/admin/jobs/${jobId}/result`)
